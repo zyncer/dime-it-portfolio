@@ -9,8 +9,13 @@ const supabase = createClient(
 );
 
 export async function POST(req: NextRequest) {
-  // NEW: Wrap the ENTIRE process in a try/catch block
   try {
+    // FIX: Trick pdf.js into bypassing the Node 21+ browser check
+    if (typeof globalThis.DOMMatrix === 'undefined') {
+      // @ts-ignore
+      globalThis.DOMMatrix = class DOMMatrix {};
+    }
+
     // @ts-ignore
     const pdf = require('pdf-parse');
 
@@ -58,7 +63,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, parsed: tradeData });
 
   } catch (err: any) {
-    // NEW: Log the exact error to the terminal and send it to the frontend!
     console.error("CRITICAL BACKEND ERROR:", err);
     return NextResponse.json({ error: err.message || 'Unknown backend crash occurred.' }, { status: 500 });
   }
