@@ -1,3 +1,9 @@
+// 1. THE FIX: Define the dummy DOMMatrix at the absolute top of the file!
+if (typeof globalThis.DOMMatrix === 'undefined') {
+  // @ts-ignore
+  globalThis.DOMMatrix = class DOMMatrix {};
+}
+
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
@@ -10,12 +16,6 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    // FIX: Trick pdf.js into bypassing the Node 21+ browser check
-    if (typeof globalThis.DOMMatrix === 'undefined') {
-      // @ts-ignore
-      globalThis.DOMMatrix = class DOMMatrix {};
-    }
-
     // @ts-ignore
     const pdf = require('pdf-parse');
 
