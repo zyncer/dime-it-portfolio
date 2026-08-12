@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 // @ts-ignore
-import pdf from 'pdf-parse/lib/pdf-parse.js';
+const pdf = require('pdf-parse');
 import { createClient } from '@supabase/supabase-js';
 
 const BROKER_PASSWORD = "20031989";
