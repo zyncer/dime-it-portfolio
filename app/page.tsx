@@ -8,9 +8,10 @@ export default function Dashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<'summary' | 'ledger' | 'history'>('summary');
 
-  // Handle PDF Upload to the backend parser
+// Handle PDF Upload to the backend parser
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
+    
     const selectedFile = e.target.files[0];
     setFile(selectedFile);
     setIsUploading(true);
@@ -23,6 +24,13 @@ export default function Dashboard() {
         method: 'POST',
         body: formData,
       });
+
+      // NEW: Catch severe server errors (like 404 or 500) before trying to read JSON
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Server Error ${response.status}: ${errorText}`);
+      }
+
       const data = await response.json();
       
       if (data.success) {
@@ -30,10 +38,14 @@ export default function Dashboard() {
       } else {
         alert(`Upload Failed: ${data.error}`);
       }
-    } catch (error) {
+    } catch (error: any) {
+      // NEW: Force the error to pop up on your screen instead of hiding in the console
       console.error("Error parsing PDF:", error);
+      alert(`Something went wrong connecting to the backend: ${error.message}`);
     } finally {
       setIsUploading(false);
+      // NEW: Reset the input so you can test the exact same file multiple times
+      e.target.value = ''; 
     }
   };
 
