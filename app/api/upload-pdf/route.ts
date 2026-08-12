@@ -1,8 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
-// @ts-ignore
-const pdf = require('pdf-parse');
-import { createClient } from '@supabase/supabase-js';
+
 
 const BROKER_PASSWORD = "20031989";
 const supabase = createClient(
@@ -11,6 +7,10 @@ const supabase = createClient(
 );
 
 export async function POST(req: NextRequest) {
+  // ADD IT HERE INSTEAD!
+  // @ts-ignore
+  const pdf = require('pdf-parse');
+
   const formData = await req.formData();
   const file = formData.get('file') as File;
   
