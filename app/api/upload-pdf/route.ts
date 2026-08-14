@@ -1,7 +1,20 @@
-// 1. THE FIX: Define the dummy DOMMatrix at the absolute top of the file!
+// 1. THE ROBUST DOMMATRIX POLYFILL
+// This proxy intercepts ANY missing methods and prevents pdf.js from crashing
 if (typeof globalThis.DOMMatrix === 'undefined') {
   // @ts-ignore
-  globalThis.DOMMatrix = class DOMMatrix {};
+  globalThis.DOMMatrix = class DOMMatrix {
+    constructor() {
+      return new Proxy(this, {
+        get: (target, prop) => {
+          if (typeof prop === 'string' && !(prop in target)) {
+            // If pdf.js calls a minified math method, safely return a dummy function
+            return () => new globalThis.DOMMatrix();
+          }
+          return Reflect.get(target, prop);
+        }
+      });
+    }
+  };
 }
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -16,9 +29,6 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    // @ts-ignore
-    const pdf = require('pdf-parse');
-
     const formData = await req.formData();
     const file = formData.get('file') as File;
     
@@ -45,9 +55,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This trade PDF has already been processed.' }, { status: 409 });
     }
 
-    // 3. Decrypt and Parse PDF Text
-    const pdfData = await pdf(buffer, { password: BROKER_PASSWORD });
-    const rawText = pdfData.text;
+    // 3. THE ULTIMATE FIX: Bypass pdf-parse wrapper and command pdf.js directly!
+    // @ts-ignore
+    const pdfjsLib = require('pdf-parse/lib/pdf.js/build/pdf.js');
+
+    // Pass the password DIRECTLY into the core engine where it belongs
+    const loadingTask = pdfjsLib.getDocument({
+      data: buffer,
+      password: BROKER_PASSWORD
+    });
+
+    const pdfDocument = await loadingTask.promise;
+    const maxPages = pdfDocument.numPages;
+    let rawText = "";
+
+    // Manually extract the text strings from every page
+    for (let pageNo = 1; pageNo <= maxPages; pageNo++) {
+      const page = await pdfDocument.getPage(pageNo);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map((item: any) => item.str).join(' ');
+      rawText += pageText + "\n";
+    }
 
     // 4. Extract Data with Regular Expressions
     const tradeData = {
