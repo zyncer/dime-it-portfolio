@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     // 3. THE ULTIMATE FIX: Bypass pdf-parse wrapper and command pdf.js directly!
     // @ts-ignore
-    const pdfjsLib = require('pdf-parse/lib/pdf.js/build/pdf.js');
+const pdfjsLib = require('pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js');
 
     // Pass the password DIRECTLY into the core engine where it belongs
     const loadingTask = pdfjsLib.getDocument({
