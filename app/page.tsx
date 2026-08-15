@@ -86,27 +86,44 @@ export default function Dashboard() {
         {isUploading && <p className="mt-4 text-blue-600">Extracting data... please wait.</p>}
       </div>
 
-      {/* Review & Confirm Modal */}
-      {parsedData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl">
-            <h3 className="text-2xl font-bold mb-4">Review Trade Details</h3>
-            <div className="space-y-2 mb-6 text-gray-700">
-              <p><strong>Ticker:</strong> {parsedData.ticker}</p>
-              <p><strong>Shares:</strong> {parsedData.shares}</p>
-              <p><strong>Price (USD):</strong> ${parsedData.price_usd}</p>
-              <p><strong>Commission (USD):</strong> ${parsedData.commission_usd}</p>
-              <p><strong>FX Rate Used:</strong> {parsedData.fx_rate_used}</p>
-              <hr className="my-2" />
-              <p className="text-lg font-semibold text-green-700">
-                Calculated THB Cost: ฿{((parsedData.shares * parsedData.price_usd * parsedData.fx_rate_used) + (parsedData.commission_usd * parsedData.fx_rate_used)).toFixed(2)}
-              </p>
+{/* Review & Confirm Modal */}
+      {parsedData && parsedData.length > 0 && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-8 max-w-2xl w-full shadow-2xl max-h-[90vh] flex flex-col">
+            <h3 className="text-2xl font-bold mb-4">Review Trade Details ({parsedData.length} Items)</h3>
+            
+            {/* ทำให้รายการเลื่อน Scroll ได้กรณีมีหุ้นหลายตัว */}
+            <div className="overflow-y-auto pr-2 space-y-4 mb-6 flex-1">
+              {parsedData.map((trade: any, index: number) => {
+                const costTHB = (trade.shares * trade.price_usd * trade.fx_rate_used) + (trade.commission_usd * trade.fx_rate_used);
+                return (
+                  <div key={index} className="bg-gray-50 border border-gray-200 p-4 rounded-lg text-gray-700">
+                    <div className="flex justify-between items-center border-b pb-2 mb-2">
+                      <span className={`font-bold px-2 py-1 rounded text-white text-xs ${trade.action === 'BUY' ? 'bg-green-600' : 'bg-red-600'}`}>
+                        {trade.action}
+                      </span>
+                      <span className="font-bold text-lg">{trade.ticker}</span>
+                      <span className="text-sm text-gray-500">Date: {new Date(trade.date).toLocaleDateString('en-GB')}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <p><strong>Shares:</strong> {trade.shares}</p>
+                      <p><strong>Price (USD):</strong> ${trade.price_usd}</p>
+                      <p><strong>Commission:</strong> ${trade.commission_usd}</p>
+                      <p><strong>FX Rate:</strong> {trade.fx_rate_used}</p>
+                    </div>
+                    <p className="mt-3 text-right text-base font-semibold text-green-700">
+                      Calculated THB: ฿{costTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
-            <div className="flex space-x-4">
-              <button onClick={confirmAndSave} className="flex-1 bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700">
-                Confirm & Save
+
+            <div className="flex space-x-4 pt-4 border-t">
+              <button onClick={confirmAndSave} className="flex-1 bg-blue-600 text-white py-3 rounded font-semibold hover:bg-blue-700">
+                Confirm & Save All
               </button>
-              <button onClick={() => setParsedData(null)} className="flex-1 bg-red-100 text-red-700 py-2 rounded font-semibold hover:bg-red-200">
+              <button onClick={() => setParsedData(null)} className="flex-1 bg-red-100 text-red-700 py-3 rounded font-semibold hover:bg-red-200">
                 Cancel
               </button>
             </div>

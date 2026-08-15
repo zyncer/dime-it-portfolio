@@ -66,18 +66,49 @@ export async function POST(req: NextRequest) {
       rawText += pageText + "\n";
     }
 
+    // ADD THESE THREE LINES TO DEBUG:
+    console.log("=== START RAW PDF TEXT ===");
+    console.log(rawText);
+    console.log("=== END RAW PDF TEXT ===");
+
     // 6. Extract Data with Regular Expressions
-    const tradeData = {
-      ticker: rawText.match(/Symbol:\s*([A-Z]+)/)?.[1] || '',
-      shares: parseFloat(rawText.match(/Quantity:\s*([\d,.]+)/)?.[1] || '0'),
-      price_usd: parseFloat(rawText.match(/Avg Price USD:\s*([\d,.]+)/)?.[1] || '0'),
-      commission_usd: parseFloat(rawText.match(/Commission USD:\s*([\d,.]+)/)?.[1] || '0'),
-      fx_rate_used: parseFloat(rawText.match(/FX Rate:\s*([\d,.]+)/)?.[1] || '0'),
+// 6. Extract Data with Regular Expressions (แบบ Loop ทุกรายการ)
+    
+    // ค้นหาอัตราแลกเปลี่ยน (FX Rate) และวันที่
+    const fxMatch = rawText.match(/\d{2}\s+[A-Za-z]+\s+\d{4}\s+([\d.]+)/);
+    const fx_rate_used = fxMatch ? parseFloat(fxMatch[1]) : 0;
+    
+    const dateMatch = rawText.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    let tradeDate = new Date().toISOString();
+    if (dateMatch) {
+      // แปลงวันที่จาก DD/MM/YYYY เป็นมาตรฐาน ISO เพื่อไม่ให้ฐานข้อมูลสับสน
+      const [_, day, month, year] = dateMatch;
+      tradeDate = new Date(`${year}-${month}-${day}T12:00:00Z`).toISOString();
+    }
+
+    // ใช้ matchAll เพื่อกวาดข้อมูลทุกบรรทัดที่มีคำสั่ง BUY หรือ SELL
+    const tradeRegex = /(BUY|SELL)\s+([A-Z0-9]+)\s+\[[A-Z]+\]\s+([\d.,]+)\s+([\d.,]+)\s+USD\s+[\d.,]+\s+([\d.,]+)/g;
+    const tradeMatches = [...rawText.matchAll(tradeRegex)];
+
+    // แปลงข้อมูลที่กวาดมาได้ทั้งหมดให้อยู่ในรูปแบบ Array
+    const tradeDataArray = tradeMatches.map(match => ({
+      action: match[1], // BUY หรือ SELL
+      date: tradeDate,
+      ticker: match[2],
+      shares: parseFloat(match[3].replace(/,/g, '')),
+      price_usd: parseFloat(match[4].replace(/,/g, '')),
+      commission_usd: parseFloat(match[5].replace(/,/g, '')),
+      fx_rate_used: fx_rate_used,
       fileHash,
       fileName: file.name
-    };
+    }));
 
-    return NextResponse.json({ success: true, parsed: tradeData });
+    if (tradeDataArray.length === 0) {
+      throw new Error("อ่านข้อมูลหุ้นไม่พบ กรุณาตรวจสอบรูปแบบ PDF");
+    }
+
+    // ส่งข้อมูลกลับไปเป็น Array
+    return NextResponse.json({ success: true, parsed: tradeDataArray });
 
   } catch (err: any) {
     console.error("CRITICAL BACKEND ERROR:", err);

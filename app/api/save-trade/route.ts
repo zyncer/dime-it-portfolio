@@ -8,19 +8,17 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const tradeData = await req.json();
+    const tradeDataArray = await req.json();
+    
+    // ดึงข้อมูลพื้นฐานจากหุ้นตัวแรกมาใช้เป็นข้อมูลไฟล์
+    const firstTrade = tradeDataArray[0];
 
-    // Calculate the final THB cost securely on the backend
-    const calculatedCostThb = 
-      (tradeData.shares * tradeData.price_usd * tradeData.fx_rate_used) + 
-      (tradeData.commission_usd * tradeData.fx_rate_used);
-
-    // 1. Write to upload_history table
+    // 1. บันทึกประวัติการอัปโหลดลง upload_history แค่ 1 ครั้งต่อ 1 ไฟล์
     const { data: uploadLog, error: uploadError } = await supabase
       .from('upload_history')
       .insert({
-        file_name: tradeData.fileName,
-        file_hash: tradeData.fileHash,
+        file_name: firstTrade.fileName,
+        file_hash: firstTrade.fileHash,
         status: 'Processed'
       })
       .select()
@@ -28,28 +26,37 @@ export async function POST(req: NextRequest) {
 
     if (uploadError) throw uploadError;
 
-    // 2. Write to portfolio_transactions table
-    const { error: tradeError } = await supabase
-      .from('portfolio_transactions')
-      .insert({
-        timestamp: new Date().toISOString(), // Or extract from PDF if available
-        ticker: tradeData.ticker,
-        action: 'Buy', // Assuming Buy for this example; adjust logic as needed
-        shares: tradeData.shares,
-        price_usd: tradeData.price_usd,
+    // 2. จัดเตรียมข้อมูลหุ้นทุกตัวให้อยู่ในรูปแบบ Array เพื่อทำ Bulk Insert
+    const transactionsToInsert = tradeDataArray.map((trade: any) => {
+      const calculatedCostThb = 
+        (trade.shares * trade.price_usd * trade.fx_rate_used) + 
+        (trade.commission_usd * trade.fx_rate_used);
+
+      return {
+        timestamp: trade.date, // ใช้วันที่ที่ดึงมาจาก PDF โดยตรง
+        ticker: trade.ticker,
+        action: trade.action === 'BUY' ? 'Buy' : 'Sell',
+        shares: trade.shares,
+        price_usd: trade.price_usd,
         funding_currency: 'THB',
-        commission_usd: tradeData.commission_usd,
-        fx_rate_used: tradeData.fx_rate_used,
+        commission_usd: trade.commission_usd,
+        fx_rate_used: trade.fx_rate_used,
         total_cost_thb: calculatedCostThb,
         upload_id: uploadLog.upload_id
-      });
+      };
+    });
+
+    // 3. บันทึกหุ้นทั้งหมดลง portfolio_transactions ในครั้งเดียว
+    const { error: tradeError } = await supabase
+      .from('portfolio_transactions')
+      .insert(transactionsToInsert);
 
     if (tradeError) throw tradeError;
 
-    return NextResponse.json({ success: true, message: 'Trade committed to database.' });
+    return NextResponse.json({ success: true, message: 'All trades committed to database.' });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Commit error:", error);
-    return NextResponse.json({ error: 'Failed to commit trade data.' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Failed to commit trade data.' }, { status: 500 });
   }
 }
