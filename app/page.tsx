@@ -1,12 +1,62 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Dashboard() {
   const [file, setFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<any>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<'summary' | 'ledger' | 'history'>('summary');
+  const [summaryData, setSummaryData] = useState<any>(null); // เพิ่มตัวแปรนี้
+  const [ledgerData, setLedgerData] = useState<any[]>([]);
+  const [historyData, setHistoryData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+const fetchLedger = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/ledger');
+      const json = await res.json();
+      if (json.success) setLedgerData(json.data);
+    } catch (err) {
+      console.error("Failed to load ledger", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchHistory = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/history');
+      const json = await res.json();
+      if (json.success) setHistoryData(json.data);
+    } catch (err) {
+      console.error("Failed to load history", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+// ฟังก์ชันดึงข้อมูล Summary
+  const fetchSummary = async () => {
+    try {
+      const res = await fetch('/api/portfolio-summary');
+      const json = await res.json();
+      if (json.success) {
+        setSummaryData(json.data);
+      }
+    } catch (err) {
+      console.error("Failed to load summary", err);
+    }
+  };
+
+  // ให้ดึงข้อมูลทุกครั้งที่กดเปิดแท็บ summary
+useEffect(() => {
+    if (activeTab === 'summary') fetchSummary();
+    if (activeTab === 'ledger') fetchLedger();
+    if (activeTab === 'history') fetchHistory();
+  }, [activeTab]);
 
 // Handle PDF Upload to the backend parser
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,6 +110,7 @@ export default function Dashboard() {
       
       if (response.ok) {
         alert("Trade successfully saved!");
+        fetchSummary();
         setParsedData(null); // Close modal
         setFile(null);
       } else {
@@ -150,11 +201,141 @@ export default function Dashboard() {
         </nav>
       </div>
 
-      {/* Dashboard Views */}
+{/* Dashboard Views */}
       <div className="bg-gray-50 p-6 rounded-lg min-h-[300px]">
-        {activeTab === 'summary' && <p><strong>Portfolio Summary Card:</strong> Net THB invested vs. current USD value converted to live THB rate will display here.</p>}
-        {activeTab === 'ledger' && <p><strong>Transaction Ledger:</strong> Historical table listing all trades with funding type (THB vs. USD) will display here.</p>}
-        {activeTab === 'history' && <p><strong>Upload History Tab:</strong> Logs showing previously uploaded files and timestamps will display here.</p>}
+        
+        {/* === แท็บ SUMMARY === */}
+        {activeTab === 'summary' && (
+          <div>
+            <h2 className="text-xl font-bold mb-6 text-gray-800">Portfolio Summary</h2>
+            
+            {!summaryData ? (
+              <p className="text-gray-500">Loading data...</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                {/* การ์ดที่ 1: ต้นทุนเงินบาท */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <p className="text-sm text-gray-500 font-medium">Total Invested (Cost)</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-2">
+                    ฿{summaryData.totalInvestedTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Based on historical FX at trade times</p>
+                </div>
+
+                {/* การ์ดที่ 2: มูลค่าพอร์ตปัจจุบัน */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <p className="text-sm text-gray-500 font-medium">Current Est. Value (THB)</p>
+                  <p className="text-2xl font-bold text-blue-600 mt-2">
+                    ฿{summaryData.currentValueTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Using live FX rate: {summaryData.currentFxRate} THB/USD
+                  </p>
+                </div>
+
+                {/* การ์ดที่ 3: กำไร/ขาดทุนจากค่าเงิน */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <p className="text-sm text-gray-500 font-medium">Unrealized P&L (FX Impact)</p>
+                  <p className={`text-2xl font-bold mt-2 ${summaryData.unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {summaryData.unrealizedPnL >= 0 ? '+' : ''}
+                    ฿{summaryData.unrealizedPnL.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                  <p className={`text-sm font-medium mt-1 ${summaryData.pnlPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {summaryData.pnlPercentage >= 0 ? '+' : ''}{summaryData.pnlPercentage.toFixed(2)}%
+                  </p>
+                </div>
+                
+              </div>
+            )}
+          </div>
+        )}
+
+{/* === แท็บ LEDGER === */}
+        {activeTab === 'ledger' && (
+          <div>
+            <h2 className="text-xl font-bold mb-6 text-gray-800">Transaction Ledger</h2>
+            {isLoading ? <p className="text-gray-500">Loading data...</p> : (
+              <div className="overflow-x-auto bg-white rounded-lg shadow border border-gray-200">
+                <table className="min-w-full text-sm text-left">
+                  <thead className="bg-gray-100 text-gray-600 font-medium border-b">
+                    <tr>
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3">Action</th>
+                      <th className="px-4 py-3">Ticker</th>
+                      <th className="px-4 py-3 text-right">Shares</th>
+                      <th className="px-4 py-3 text-right">Price (USD)</th>
+                      <th className="px-4 py-3 text-right">Commission</th>
+                      <th className="px-4 py-3 text-right">FX Rate</th>
+                      <th className="px-4 py-3 text-right">Total Cost (THB)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {ledgerData.length === 0 ? (
+                      <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No transactions found</td></tr>
+                    ) : ledgerData.map((trade, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-gray-700">{new Date(trade.timestamp).toLocaleDateString('en-GB')}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded text-xs font-bold text-white ${trade.action === 'Buy' ? 'bg-green-600' : 'bg-red-600'}`}>
+                            {trade.action}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-bold">{trade.ticker}</td>
+                        <td className="px-4 py-3 text-right">{Number(trade.shares).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right">${Number(trade.price_usd).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right">${Number(trade.commission_usd).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right">{Number(trade.fx_rate_used).toFixed(4)}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-green-700">
+                          ฿{Number(trade.total_cost_thb).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* === แท็บ HISTORY === */}
+        {activeTab === 'history' && (
+          <div>
+            <h2 className="text-xl font-bold mb-6 text-gray-800">Upload History</h2>
+            {isLoading ? <p className="text-gray-500">Loading data...</p> : (
+              <div className="overflow-x-auto bg-white rounded-lg shadow border border-gray-200">
+                <table className="min-w-full text-sm text-left">
+                  <thead className="bg-gray-100 text-gray-600 font-medium border-b">
+                    <tr>
+                      <th className="px-4 py-3">Upload Date</th>
+                      <th className="px-4 py-3">File Name</th>
+                      <th className="px-4 py-3">File Hash (Fingerprint)</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {historyData.length === 0 ? (
+                      <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-500">No files uploaded yet</td></tr>
+                    ) : historyData.map((log, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                          {new Date(log.uploaded_at).toLocaleString('en-GB')}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-blue-600">{log.file_name}</td>
+                        <td className="px-4 py-3 text-gray-400 font-mono text-xs">{log.file_hash.substring(0, 20)}...</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
+                            {log.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
