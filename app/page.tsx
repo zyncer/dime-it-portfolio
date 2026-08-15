@@ -290,10 +290,10 @@ useEffect(() => {
         {activeTab === 'ledger' && (
           <div>
             <h2 className="text-xl font-bold mb-6 text-gray-800">Transaction Ledger</h2>
-            {isLoading ? <p className="text-gray-500">Loading data...</p> : (
+            {isLoading ? <p className="text-gray-900 font-medium">Loading data...</p> : (
               <div className="overflow-x-auto bg-white rounded-lg shadow border border-gray-200">
                 <table className="min-w-full text-sm text-left">
-                  <thead className="bg-gray-100 text-gray-600 font-medium border-b">
+                  <thead className="bg-gray-200 text-gray-900 font-bold border-b">
                     <tr>
                       <th className="px-4 py-3">Date</th>
                       <th className="px-4 py-3">Action</th>
@@ -307,21 +307,21 @@ useEffect(() => {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {ledgerData.length === 0 ? (
-                      <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No transactions found</td></tr>
+                      <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-900 font-medium">No transactions found</td></tr>
                     ) : ledgerData.map((trade, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-gray-700">{new Date(trade.timestamp).toLocaleDateString('en-GB')}</td>
+                      <tr key={idx} className="hover:bg-gray-50 text-gray-900">
+                        <td className="px-4 py-3 font-medium">{new Date(trade.timestamp).toLocaleDateString('en-GB')}</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-1 rounded text-xs font-bold text-white ${trade.action === 'Buy' ? 'bg-green-600' : 'bg-red-600'}`}>
                             {trade.action}
                           </span>
                         </td>
-                        <td className="px-4 py-3 font-bold">{trade.ticker}</td>
-                        <td className="px-4 py-3 text-right">{Number(trade.shares).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right">${Number(trade.price_usd).toFixed(2)}</td>
-                        <td className="px-4 py-3 text-right">${Number(trade.commission_usd).toFixed(2)}</td>
-                        <td className="px-4 py-3 text-right">{Number(trade.fx_rate_used).toFixed(4)}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-green-700">
+                        <td className="px-4 py-3 font-bold text-black">{trade.ticker}</td>
+                        <td className="px-4 py-3 text-right font-medium">{Number(trade.shares).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right font-medium">${Number(trade.price_usd).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right font-medium">${Number(trade.commission_usd).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right font-medium">{Number(trade.fx_rate_used).toFixed(4)}</td>
+                        <td className="px-4 py-3 text-right font-bold text-green-700">
                           ฿{Number(trade.total_cost_thb).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
