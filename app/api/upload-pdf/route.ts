@@ -1,20 +1,7 @@
-// 1. THE ROBUST DOMMATRIX POLYFILL
-// This proxy intercepts ANY missing methods and prevents pdf.js from crashing
+// 1. Safe DOMMatrix Polyfill for Next.js Node environment
 if (typeof globalThis.DOMMatrix === 'undefined') {
   // @ts-ignore
-  globalThis.DOMMatrix = class DOMMatrix {
-    constructor() {
-      return new Proxy(this, {
-        get: (target, prop) => {
-          if (typeof prop === 'string' && !(prop in target)) {
-            // If pdf.js calls a minified math method, safely return a dummy function
-            return () => new globalThis.DOMMatrix();
-          }
-          return Reflect.get(target, prop);
-        }
-      });
-    }
-  };
+  globalThis.DOMMatrix = class DOMMatrix {};
 }
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -29,24 +16,29 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
+    // 2. Load the modern, Next.js-friendly legacy build of pdf.js
+    const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+    
+    // Disable workers to force it to run purely server-side
+    pdfjsLib.GlobalWorkerOptions.workerSrc = false;
+
     const formData = await req.formData();
     const file = formData.get('file') as File;
     
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
 
     const buffer = Buffer.from(await file.arrayBuffer());
-
-    // 1. Generate SHA-256 Hash
+    
+    // 3. Generate SHA-256 Hash
     const fileHash = crypto.createHash('sha256').update(buffer).digest('hex');
 
-    // 2. Prevent Duplicate Uploads
+    // 4. Prevent Duplicate Uploads
     const { data: existing, error: supabaseError } = await supabase
       .from('upload_history')
       .select('file_hash')
       .eq('file_hash', fileHash)
       .single();
 
-    // Ignore PGRST116 (which just means 0 rows found, this is a good thing for new uploads!)
     if (supabaseError && supabaseError.code !== 'PGRST116') {
       throw new Error(`Supabase Error: ${supabaseError.message}`);
     }
@@ -55,13 +47,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This trade PDF has already been processed.' }, { status: 409 });
     }
 
-    // 3. THE ULTIMATE FIX: Bypass pdf-parse wrapper and command pdf.js directly!
-    // @ts-ignore
-const pdfjsLib = require('pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js');
-
-    // Pass the password DIRECTLY into the core engine where it belongs
+    // 5. Decrypt and Parse PDF Text using modern pdfjs-dist
+    const uint8Array = new Uint8Array(buffer);
     const loadingTask = pdfjsLib.getDocument({
-      data: buffer,
+      data: uint8Array,
       password: BROKER_PASSWORD
     });
 
@@ -69,7 +58,7 @@ const pdfjsLib = require('pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js');
     const maxPages = pdfDocument.numPages;
     let rawText = "";
 
-    // Manually extract the text strings from every page
+    // Loop through all pages and extract text natively
     for (let pageNo = 1; pageNo <= maxPages; pageNo++) {
       const page = await pdfDocument.getPage(pageNo);
       const textContent = await page.getTextContent();
@@ -77,7 +66,7 @@ const pdfjsLib = require('pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js');
       rawText += pageText + "\n";
     }
 
-    // 4. Extract Data with Regular Expressions
+    // 6. Extract Data with Regular Expressions
     const tradeData = {
       ticker: rawText.match(/Symbol:\s*([A-Z]+)/)?.[1] || '',
       shares: parseFloat(rawText.match(/Quantity:\s*([\d,.]+)/)?.[1] || '0'),
