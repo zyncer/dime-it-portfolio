@@ -15,7 +15,7 @@ export async function GET() {
 
     if (tradesError) throw tradesError;
 
-    // 2. ดึงอัตราแลกเปลี่ยน USD-THB ล่าสุด (ถ้ายังไม่มี cron job จะใช้ค่า default 33.15 ไปก่อน)
+    // 2. ดึงอัตราแลกเปลี่ยน USD-THB ล่าสุด
     const { data: fxData } = await supabase
       .from('fx_rates')
       .select('rate')
@@ -25,21 +25,50 @@ export async function GET() {
 
     const currentFxRate = fxData ? Number(fxData.rate) : 33.15;
 
-    // 3. คำนวณต้นทุนทั้งหมด (THB) และมูลค่าสินทรัพย์ที่มีอยู่ (USD)
+    // 3. ตัวแปรเก็บภาพรวม และ Object สำหรับจัดกลุ่มตาม Symbol
     let totalInvestedTHB = 0;
     let totalAssetsUSD = 0;
+    const symbolData: Record<string, any> = {};
 
     (trades || []).forEach((trade: any) => {
-      if (trade.action === 'Buy') {
-        totalInvestedTHB += Number(trade.total_cost_thb);
-        // ต้นทุน USD = (จำนวนหุ้น * ราคา) + ค่าธรรมเนียม
-        totalAssetsUSD += (Number(trade.shares) * Number(trade.price_usd)) + Number(trade.commission_usd);
-      } else if (trade.action === 'Sell') {
-        // อนาคตถ้ามีการขาย จะต้องเอามาหักลบตรงนี้
+      const ticker = trade.ticker;
+      
+      // ถ้ายังไม่มี Ticker นี้ใน Object ให้สร้างใหม่
+      if (!symbolData[ticker]) {
+        symbolData[ticker] = { ticker, shares: 0, investedTHB: 0, investedUSD: 0 };
       }
+
+      if (trade.action.toUpperCase() === 'BUY') {
+        const costTHB = Number(trade.total_cost_thb);
+        const costUSD = (Number(trade.shares) * Number(trade.price_usd)) + Number(trade.commission_usd);
+        
+        // ยอดรวมทั้งพอร์ต
+        totalInvestedTHB += costTHB;
+        totalAssetsUSD += costUSD;
+
+        // ยอดรวมแยกตาม Symbol
+        symbolData[ticker].shares += Number(trade.shares);
+        symbolData[ticker].investedTHB += costTHB;
+        symbolData[ticker].investedUSD += costUSD;
+      }
+      // อนาคตหากมี SELL ให้เอามาหักลบ
     });
 
-    // 4. ประเมินมูลค่าพอร์ตปัจจุบันเป็นเงินบาท (อิงตาม FX วันนี้)
+    // 4. แปลง Object แยกตาม Symbol ให้เป็น Array พร้อมคำนวณ P&L รายตัว (อิงผลกระทบจากค่าเงิน)
+    const bySymbol = Object.values(symbolData).map((stock: any) => {
+      const currentValueTHB = stock.investedUSD * currentFxRate;
+      const unrealizedPnL = currentValueTHB - stock.investedTHB;
+      const pnlPercentage = stock.investedTHB > 0 ? (unrealizedPnL / stock.investedTHB) * 100 : 0;
+      
+      return {
+        ...stock,
+        currentValueTHB,
+        unrealizedPnL,
+        pnlPercentage
+      };
+    });
+
+    // 5. คำนวณ P&L ภาพรวมทั้งพอร์ต
     const currentValueTHB = totalAssetsUSD * currentFxRate;
     const unrealizedPnL = currentValueTHB - totalInvestedTHB;
     const pnlPercentage = totalInvestedTHB > 0 ? (unrealizedPnL / totalInvestedTHB) * 100 : 0;
@@ -53,7 +82,8 @@ export async function GET() {
         currentValueTHB,
         unrealizedPnL,
         pnlPercentage,
-        tradeCount: trades?.length || 0
+        tradeCount: trades?.length || 0,
+        bySymbol // ส่งข้อมูลที่แยกตามราย Symbol กลับไปให้ Frontend ด้วย
       }
     });
 

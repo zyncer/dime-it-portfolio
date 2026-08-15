@@ -204,7 +204,7 @@ useEffect(() => {
 {/* Dashboard Views */}
       <div className="bg-gray-50 p-6 rounded-lg min-h-[300px]">
         
-        {/* === แท็บ SUMMARY === */}
+{/* === แท็บ SUMMARY === */}
         {activeTab === 'summary' && (
           <div>
             <h2 className="text-xl font-bold mb-6 text-gray-800">Portfolio Summary</h2>
@@ -212,40 +212,75 @@ useEffect(() => {
             {!summaryData ? (
               <p className="text-gray-500">Loading data...</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                
-                {/* การ์ดที่ 1: ต้นทุนเงินบาท */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                  <p className="text-sm text-gray-500 font-medium">Total Invested (Cost)</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">
-                    ฿{summaryData.totalInvestedTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">Based on historical FX at trade times</p>
+              <div className="space-y-8">
+                {/* ส่วนที่ 1: ภาพรวมทั้งพอร์ต (Total) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <p className="text-sm text-gray-500 font-medium">Total Invested (Cost)</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-2">
+                      ฿{summaryData.totalInvestedTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Based on historical FX at trade times</p>
+                  </div>
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <p className="text-sm text-gray-500 font-medium">Current Est. Value (THB)</p>
+                    <p className="text-2xl font-bold text-blue-600 mt-2">
+                      ฿{summaryData.currentValueTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Using live FX rate: {summaryData.currentFxRate} THB/USD</p>
+                  </div>
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <p className="text-sm text-gray-500 font-medium">Unrealized P&L (FX Impact)</p>
+                    <p className={`text-2xl font-bold mt-2 ${summaryData.unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {summaryData.unrealizedPnL >= 0 ? '+' : ''}
+                      ฿{summaryData.unrealizedPnL.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                    <p className={`text-sm font-medium mt-1 ${summaryData.pnlPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {summaryData.pnlPercentage >= 0 ? '+' : ''}{summaryData.pnlPercentage.toFixed(2)}%
+                    </p>
+                  </div>
                 </div>
 
-                {/* การ์ดที่ 2: มูลค่าพอร์ตปัจจุบัน */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                  <p className="text-sm text-gray-500 font-medium">Current Est. Value (THB)</p>
-                  <p className="text-2xl font-bold text-blue-600 mt-2">
-                    ฿{summaryData.currentValueTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Using live FX rate: {summaryData.currentFxRate} THB/USD
-                  </p>
+                {/* ส่วนที่ 2: แจกแจงรายละเอียดแยกตาม Symbol (Holdings) */}
+                <div>
+                  <h3 className="text-lg font-bold mb-4 text-gray-700">Holdings by Symbol</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {summaryData.bySymbol.map((stock: any, index: number) => (
+                      <div key={index} className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-xl font-bold text-gray-800">{stock.ticker}</span>
+                          <span className="text-sm font-medium bg-blue-50 text-blue-700 px-2 py-1 rounded">
+                            {Number(stock.shares).toLocaleString()} Shares
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Invested (THB):</span>
+                            <span className="font-medium text-gray-900">
+                              ฿{stock.investedTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Est. Value (THB):</span>
+                            <span className="font-medium text-gray-900">
+                              ฿{stock.currentValueTHB.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          <div className="flex justify-between pt-2 border-t mt-2">
+                            <span className="text-gray-500">Unrealized P&L:</span>
+                            <span className={`font-bold ${stock.unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {stock.unrealizedPnL >= 0 ? '+' : ''}
+                              {stock.unrealizedPnL.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              <span className="text-xs ml-1 font-medium">
+                                ({stock.pnlPercentage >= 0 ? '+' : ''}{stock.pnlPercentage.toFixed(2)}%)
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-
-                {/* การ์ดที่ 3: กำไร/ขาดทุนจากค่าเงิน */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                  <p className="text-sm text-gray-500 font-medium">Unrealized P&L (FX Impact)</p>
-                  <p className={`text-2xl font-bold mt-2 ${summaryData.unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {summaryData.unrealizedPnL >= 0 ? '+' : ''}
-                    ฿{summaryData.unrealizedPnL.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                  <p className={`text-sm font-medium mt-1 ${summaryData.pnlPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {summaryData.pnlPercentage >= 0 ? '+' : ''}{summaryData.pnlPercentage.toFixed(2)}%
-                  </p>
-                </div>
-                
               </div>
             )}
           </div>
